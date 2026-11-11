@@ -1,0 +1,6 @@
+{
+  "name": "FitHub - by Yash Badgujar",
+  "description": "High-performance fitness platform providing personalized workout plans and exercise charts tailored to your body weight, height, age, gender, and physical condition.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
