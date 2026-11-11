@@ -4,6 +4,7 @@ import {
   WorkoutDay,
   Exercise
 } from '../types/fitness';
+import { ExercisePostureVisualizer } from './ExercisePostureVisualizer';
 import { soundEffects } from '../utils/soundEffects';
 import {
   Dumbbell,
@@ -44,6 +45,7 @@ export const ExerciseChartPlan: React.FC<ExerciseChartPlanProps> = ({
   // Exercise Swap State
   const [swappingExercise, setSwappingExercise] = useState<{ dayIdx: number; exIdx: number; exercise: Exercise } | null>(null);
   const [currentPlan, setCurrentPlan] = useState<WorkoutPlan>(plan);
+  const [expandAll4D, setExpandAll4D] = useState(true);
 
   useEffect(() => {
     setCurrentPlan(plan);
@@ -220,6 +222,44 @@ ${currentPlan.days.map((d) => `\n--- ${d.title} ---\nFocus: ${d.focus}\nExercise
                 <RotateCcw className="w-4 h-4 text-neutral-300" />
                 <span>Edit Metrics</span>
               </button>
+            </div>
+          </div>
+
+          {/* Condition Adaptation Prescription Callout */}
+          <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-[#1f070d] via-[#161924] to-[#0e111a] border border-[#e6193c]/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-inner">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-[#e6193c]/20 border border-[#e6193c] flex items-center justify-center shrink-0 text-[#ff8093]">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-white">
+                    Safeguard Prescribed: <span className="text-[#ff8093]">{currentPlan.userAssessment.bodyCondition.replace(/_/g, ' ')}</span>
+                  </span>
+                  <span className="text-white/30">·</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                    Goal: <span className="text-white">{currentPlan.userAssessment.goal.replace(/_/g, ' ')}</span>
+                  </span>
+                  <span className="text-white/30">·</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-sky-300">
+                    Gear: <span className="text-white">{currentPlan.userAssessment.trainingEnvironment.replace(/_/g, ' ')}</span>
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-300 leading-relaxed">
+                  {currentPlan.userAssessment.bodyCondition === 'knee_friendly' && 'Knee Joint Protection: Squats and deep extensions replaced with vertical-shin Bulgarian split squats, Romanian deadlifts & hip thrusts (zero patellar tendon shear).'}
+                  {currentPlan.userAssessment.bodyCondition === 'lower_back_care' && 'Spinal Decompression: Heavy deadlifts and bent-over rows replaced with chest-supported incline rows, lat pulldowns & McGill core work (zero compressive lumbar shear).'}
+                  {currentPlan.userAssessment.bodyCondition === 'shoulder_safe' && 'Rotator Cuff Longevity: Flared presses replaced with 30° scapular incline dumbbell pressing, neutral grips, and high-rep external rotation face pulls.'}
+                  {currentPlan.userAssessment.bodyCondition === 'sedentary_posture' && 'Desk Posture Reset: Focuses on waking up dormant glutes, opening tight hip flexors, and scapular retractors to directly counteract long sitting hours.'}
+                  {currentPlan.userAssessment.bodyCondition === 'healthy' && 'Unrestricted Athletic Overload: Multi-joint compound movements periodized for maximum neuromuscular motor unit recruitment and speed.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="shrink-0 self-end sm:self-center">
+              <span className="px-2.5 py-1 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 rounded text-[11px] font-bold uppercase tracking-wider inline-flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>100% Calibrated</span>
+              </span>
             </div>
           </div>
 
@@ -511,14 +551,27 @@ ${currentPlan.days.map((d) => `\n--- ${d.title} ---\nFocus: ${d.focus}\nExercise
 
               {/* EXERCISE TABLE & DETAILED CARDS */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-display text-lg font-bold uppercase tracking-wide text-white flex items-center gap-2">
-                    <Dumbbell className="w-4 h-4 text-[#e6193c]" />
-                    <span>Prescribed Working Movements</span>
-                  </h4>
-                  <span className="text-xs text-neutral-400">
-                    Click 'Swap' to adapt equipment or angles
-                  </span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                  <div>
+                    <h4 className="font-display text-lg sm:text-xl font-bold uppercase tracking-wide text-white flex items-center gap-2">
+                      <Dumbbell className="w-5 h-5 text-[#e6193c]" />
+                      <span>Prescribed Movements (5 Targeted Exercises)</span>
+                    </h4>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      Each exercise features interactive 4D isometric motion vectors, time tempos & safe joint angles.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 no-print">
+                    <button
+                      type="button"
+                      onClick={() => setExpandAll4D(!expandAll4D)}
+                      className="px-3 py-1.5 bg-[#e6193c]/20 hover:bg-[#e6193c]/30 text-[#ff8093] border border-[#e6193c]/40 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#ff8093]" />
+                      <span>{expandAll4D ? 'Hide 4D Diagrams' : 'Show All 4D Postures'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -610,6 +663,20 @@ ${currentPlan.days.map((d) => `\n--- ${d.title} ---\nFocus: ${d.focus}\nExercise
                           </div>
 
                         </div>
+
+                        {/* Posture / 4D Biomechanical Diagram Visualizer */}
+                        <ExercisePostureVisualizer
+                          key={`${exercise.id}_${expandAll4D}`}
+                          exerciseName={exercise.name}
+                          targetMuscle={exercise.targetMuscle}
+                          secondaryMuscles={exercise.secondaryMuscles}
+                          equipment={exercise.equipment}
+                          formCue={exercise.formCue}
+                          conditionNote={exercise.conditionNote}
+                          illustrationType={exercise.illustrationType}
+                          postureKeypoints={exercise.postureKeypoints}
+                          defaultOpen={expandAll4D}
+                        />
 
                         {/* Interactive Set Checkboxes when Workout is Active */}
                         {isWorkoutActive && (

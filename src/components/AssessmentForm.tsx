@@ -9,7 +9,8 @@ import {
   WeightUnit,
   HeightUnit
 } from '../types/fitness';
-import { calculateBMI, calculateBMR } from '../utils/fitnessCalculator';
+import { calculateBMI, calculateBMR, evaluateBmiHealth } from '../utils/fitnessCalculator';
+import { soundEffects } from '../utils/soundEffects';
 import {
   Activity,
   Flame,
@@ -64,10 +65,12 @@ export const AssessmentForm: React.FC<AssessmentFormProps> = ({
 
   const { bmi, category: bmiCategory } = calculateBMI(normalizedWeightKg, normalizedHeightCm);
   const bmrEst = calculateBMR(normalizedWeightKg, normalizedHeightCm, age, gender);
+  const bmiEval = evaluateBmiHealth(bmi, bodyCondition, goal);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    soundEffects.playSuccessChime();
 
     const assessment: UserAssessment = {
       weight: normalizedWeightKg,
@@ -88,16 +91,18 @@ export const AssessmentForm: React.FC<AssessmentFormProps> = ({
       sessionDurationMin: durationMin
     };
 
+    // Immediately pass the newly calibrated assessment
+    onPlanGenerated(assessment);
+
     setTimeout(() => {
-      onPlanGenerated(assessment);
       setIsSubmitting(false);
 
-      // Smooth scroll to the generated plan
+      // Smooth scroll directly to the newly generated exercise chart
       const planElem = document.getElementById('exercise-chart');
       if (planElem) {
         planElem.scrollIntoView({ behavior: 'smooth' });
       }
-    }, 400);
+    }, 300);
   };
 
   return (
@@ -475,10 +480,16 @@ export const AssessmentForm: React.FC<AssessmentFormProps> = ({
                       onChange={(e) => setTrainingEnvironment(e.target.value as TrainingEnvironment)}
                       className="w-full bg-[#0a0b0f] border border-white/15 focus:border-[#e6193c] rounded-lg px-3 py-2.5 text-xs font-bold text-white uppercase outline-none"
                     >
-                      <option value="commercial_gym">Commercial Gym (Full)</option>
-                      <option value="home_gym">Home Gym (Dumbbells/Bench)</option>
-                      <option value="bodyweight">Bodyweight & Calisthenics</option>
+                      <option value="bodyweight">Only Home Workout Without Any Weight (Calisthenics)</option>
+                      <option value="home_bands">Home Workout with Resistance Bands</option>
+                      <option value="home_gym">Home Gym (Dumbbells & Bench)</option>
+                      <option value="commercial_gym">Commercial Gym (Full Equipment)</option>
                     </select>
+                    {trainingEnvironment === 'bodyweight' && (
+                      <span className="text-[10px] text-emerald-400 font-semibold block">
+                        ✓ 100% Zero-Equipment Bodyweight Calisthenics Routine
+                      </span>
+                    )}
                   </div>
 
                   {/* Days per week */}
@@ -528,17 +539,25 @@ export const AssessmentForm: React.FC<AssessmentFormProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-4 bg-gradient-to-r from-[#e6193c] via-[#cc1433] to-[#880b20] hover:from-[#f32448] hover:to-[#a7112a] text-white font-display text-xl sm:text-2xl font-black uppercase tracking-wider rounded-xl shadow-xl shadow-[#e6193c]/30 hover:shadow-[#e6193c]/50 transition-all cursor-pointer flex items-center justify-center gap-3 disabled:opacity-60"
+                  className="w-full py-4 px-6 bg-gradient-to-r from-[#e6193c] via-[#cc1433] to-[#880b20] hover:from-[#f32448] hover:to-[#a7112a] text-white font-display uppercase tracking-wider rounded-xl shadow-xl shadow-[#e6193c]/35 hover:shadow-[0_0_35px_rgba(230,25,60,0.6)] hover:scale-[1.01] active:scale-[0.98] transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 disabled:opacity-60 border border-white/20 select-none group"
                 >
                   {isSubmitting ? (
-                    <>
+                    <div className="flex items-center gap-3">
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Computing Biomechanics & Exercise Chart...</span>
-                    </>
+                      <span className="text-xl sm:text-2xl font-black">Applying Biomechanical Safeguards...</span>
+                    </div>
                   ) : (
                     <>
-                      <span>Generate My Personalized Exercise Chart</span>
-                      <ChevronRight className="w-6 h-6 text-white" />
+                      <div className="text-center sm:text-left">
+                        <div className="text-xl sm:text-2xl font-black tracking-wide flex items-center justify-center sm:justify-start gap-2">
+                          <span>Generate My Personalized Exercise Chart</span>
+                          <Sparkles className="w-5 h-5 text-amber-300 group-hover:rotate-12 transition-transform" />
+                        </div>
+                        <div className="text-[11px] sm:text-xs font-sans font-medium text-red-100 normal-case tracking-normal mt-0.5">
+                          Actively tailoring for: <strong className="text-white capitalize">{goal.replace(/_/g, ' ')}</strong> · <strong className="text-emerald-300 capitalize">{bodyCondition.replace(/_/g, ' ')}</strong> · <strong className="text-white">{daysPerWeek} Days/Week</strong>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-6 h-6 text-white group-hover:translate-x-1.5 transition-transform shrink-0 hidden sm:block" />
                     </>
                   )}
                 </button>
@@ -562,19 +581,53 @@ export const AssessmentForm: React.FC<AssessmentFormProps> = ({
                 <span className="text-[10px] text-neutral-400 font-mono">Formula: Mifflin-St Jeor</span>
               </div>
 
-              {/* BMI Output */}
-              <div className="space-y-1.5">
+              {/* BMI Output with Health Rating according to condition */}
+              <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-neutral-400">Body Mass Index (BMI)</span>
-                  <span className="font-bold text-white tabular-nums">{bmi}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white tabular-nums text-sm">{bmi}</span>
+                    <span className="text-neutral-500 font-mono text-[10px]">({bmiCategory})</span>
+                  </div>
                 </div>
+
                 {/* Visual Bar */}
                 <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden flex">
-                  <div className={`h-full ${bmi < 18.5 ? 'bg-sky-400' : bmi <= 24.9 ? 'bg-emerald-400' : bmi <= 29.9 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${Math.min(100, Math.max(10, (bmi / 35) * 100))}%` }} />
+                  <div 
+                    className={`h-full transition-all duration-300 ${
+                      bmiEval.rating === 'good' 
+                        ? 'bg-emerald-400' 
+                        : bmiEval.rating === 'moderate' 
+                        ? 'bg-amber-400' 
+                        : bmiEval.rating === 'bad' 
+                        ? 'bg-orange-500' 
+                        : 'bg-red-600'
+                    }`} 
+                    style={{ width: `${Math.min(100, Math.max(10, (bmi / 38) * 100))}%` }} 
+                  />
                 </div>
-                <div className="flex justify-between items-center text-[10px] text-neutral-400 pt-0.5">
-                  <span>Category: <strong className="text-white">{bmiCategory}</strong></span>
-                  <span>Healthy Range: 18.5 - 24.9</span>
+
+                {/* BMI Health Status Badge & Verdict according to Condition */}
+                <div className="mt-2.5 p-3 rounded-xl border text-xs space-y-1.5 transition-all bg-black/40 border-white/10">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] uppercase font-bold text-neutral-400">
+                      Condition Verdict:
+                    </span>
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                      bmiEval.rating === 'good'
+                        ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50'
+                        : bmiEval.rating === 'moderate'
+                        ? 'bg-amber-950/90 text-amber-300 border-amber-500/50'
+                        : bmiEval.rating === 'bad'
+                        ? 'bg-orange-950/90 text-orange-300 border-orange-500/50'
+                        : 'bg-red-950/95 text-red-300 border-red-500/60'
+                    }`}>
+                      BMI IS {bmiEval.rating.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-300 leading-relaxed">
+                    {bmiEval.verdict}
+                  </p>
                 </div>
               </div>
 

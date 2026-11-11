@@ -10,7 +10,6 @@ import { PhilosophySection } from './components/PhilosophySection';
 import { DisciplinesSection } from './components/DisciplinesSection';
 import { FloorSchedule } from './components/FloorSchedule';
 import { CoachesSection } from './components/CoachesSection';
-import { TransformationsSection } from './components/TransformationsSection';
 import { Footer } from './components/Footer';
 import { Dumbbell } from 'lucide-react';
 
@@ -179,9 +178,6 @@ export default function App() {
 
       {/* The People Who Program You / Coaches Showcase */}
       <CoachesSection />
-
-      {/* Transformations & Proof Section */}
-      <TransformationsSection />
 
       {/* Footer */}
       <Footer />

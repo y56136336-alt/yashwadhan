@@ -37,14 +37,92 @@ export function calculateBMR(weightKg: number, heightCm: number, age: number, ge
 }
 
 /**
- * Calculate TDEE and tailored target calories & macros
+ * Evaluate BMI health status as Good, Moderate, Bad, or Worst according to user's condition
+ */
+export function evaluateBmiHealth(
+  bmi: number,
+  condition: BodyCondition,
+  goal: FitnessGoal
+): { rating: 'good' | 'moderate' | 'bad' | 'worst'; label: string; verdict: string } {
+  if (bmi >= 18.5 && bmi <= 24.9) {
+    let verdict = 'Optimal healthy weight. Excellent biological baseline for athletic recovery and joint longevity.';
+    if (condition === 'knee_friendly') {
+      verdict = 'GOOD: Your body weight places minimal excess load on knee cartilage, allowing safe joint rehabilitation without high patellar shear.';
+    } else if (condition === 'lower_back_care') {
+      verdict = 'GOOD: Low abdominal mass reduces anterior gravitational pull on the lumbar spine and anterior pelvic tilt.';
+    } else if (condition === 'sedentary_posture') {
+      verdict = 'GOOD: Favorable weight baseline to focus on fixing glute amnesia, thoracic mobility, and desk posture.';
+    }
+    return {
+      rating: 'good',
+      label: 'GOOD (Optimal & Healthy)',
+      verdict
+    };
+  } else if (bmi < 18.5) {
+    if (bmi < 16.5) {
+      return {
+        rating: 'worst',
+        label: 'WORST (Severely Underweight)',
+        verdict: 'WORST: Severely low body mass. High vulnerability to muscle wasting, joint fragility, and hormonal dysregulation. Immediate clean calorie surplus is critical.'
+      };
+    }
+    return {
+      rating: 'bad',
+      label: 'BAD (Underweight / Low Lean Mass)',
+      verdict: 'BAD: Below healthy mass baseline. Lack of protective muscle padding leaves joints exposed to fatigue. Focus on clean mass building.'
+    };
+  } else if (bmi >= 25 && bmi < 30) {
+    if (goal === 'muscle_building' || goal === 'weight_gain') {
+      return {
+        rating: 'moderate',
+        label: 'MODERATE (Muscular Overload / Bulk Phase)',
+        verdict: 'MODERATE: Slightly elevated BMI, common among muscular lifters with dense bone and contractile tissue. Maintain cardiovascular health.'
+      };
+    }
+    if (condition === 'knee_friendly') {
+      return {
+        rating: 'bad',
+        label: 'BAD for Knee Joints (Overweight)',
+        verdict: 'BAD: Every additional 1kg of body mass exerts 4kg of extra compressive mechanical force on the patella during walking. Controlled fat loss will drastically relieve knee pain.'
+      };
+    } else if (condition === 'lower_back_care') {
+      return {
+        rating: 'bad',
+        label: 'BAD for Spine (Excess Lumbar Pressure)',
+        verdict: 'BAD: Extra visceral weight increases anterior pelvic tilt, compressing lumbar discs L4-L5. Prioritize fat loss to permanently relieve back ache.'
+      };
+    }
+    return {
+      rating: 'moderate',
+      label: 'MODERATE (Overweight)',
+      verdict: 'MODERATE: Mildly elevated body mass. Increasing weekly training volume and following your prescribed deficit will lower joint strain.'
+    };
+  } else {
+    // bmi >= 30
+    if (bmi >= 35) {
+      return {
+        rating: 'worst',
+        label: 'WORST (High Joint & Cardiovascular Risk)',
+        verdict: 'WORST: Severe systemic strain on cardiovascular health, knee cartilage, and spinal discs. Immediate structured caloric deficit with joint-safe walking required.'
+      };
+    }
+    return {
+      rating: 'bad',
+      label: 'BAD (Obesity Range)',
+      verdict: 'BAD: Excessive mechanical loading on hips, knees, and lumbar spine. Joint-friendly training without jumping or axial compression is mandatory.'
+    };
+  }
+}
+
+/**
+ * Calculate TDEE and tailored target calories & macros based on goal & stats
  */
 export function calculateNutrition(assessment: UserAssessment): BodyMetrics {
   const { bmi, category } = calculateBMI(assessment.weight, assessment.height);
   const bmr = calculateBMR(assessment.weight, assessment.height, assessment.age, assessment.gender);
+  const bmiEval = evaluateBmiHealth(bmi, assessment.bodyCondition, assessment.goal);
 
-  // Activity multiplier based on days per week and condition
-  let activityFactor = 1.2; // Sedentary base
+  let activityFactor = 1.2;
   if (assessment.daysPerWeek === 3) activityFactor = 1.375;
   else if (assessment.daysPerWeek === 4) activityFactor = 1.45;
   else if (assessment.daysPerWeek === 5) activityFactor = 1.55;
@@ -58,25 +136,21 @@ export function calculateNutrition(assessment: UserAssessment): BodyMetrics {
 
   switch (assessment.goal) {
     case 'weight_gain':
-      // Moderate clean calorie surplus (+400 kcal)
       targetCalories = tdee + 420;
       proteinPerKg = 2.1;
       fatPercent = 0.25;
       break;
     case 'weight_loss':
-      // Controlled sustainable deficit (-450 kcal)
       targetCalories = Math.max(1200, tdee - 450);
-      proteinPerKg = 2.3; // Higher protein to spare lean muscle mass during deficit
+      proteinPerKg = 2.3;
       fatPercent = 0.27;
       break;
     case 'muscle_building':
-      // Lean hypertrophy surplus (+220 kcal)
       targetCalories = tdee + 220;
       proteinPerKg = 2.2;
       fatPercent = 0.25;
       break;
     case 'remain_fit':
-      // Maintenance
       targetCalories = tdee;
       proteinPerKg = 1.8;
       fatPercent = 0.26;
@@ -87,12 +161,15 @@ export function calculateNutrition(assessment: UserAssessment): BodyMetrics {
   const fatGrams = Math.round((targetCalories * fatPercent) / 9);
   const remainingCalories = Math.max(0, targetCalories - (proteinGrams * 4 + fatGrams * 9));
   const carbsGrams = Math.round(remainingCalories / 4);
-  const fiberGrams = Math.round((targetCalories / 1000) * 14); // 14g per 1000 kcal
+  const fiberGrams = Math.round((targetCalories / 1000) * 14);
   const waterLiters = parseFloat((assessment.weight * 0.038 + (assessment.daysPerWeek > 4 ? 0.5 : 0.2)).toFixed(1));
 
   return {
     bmi,
     bmiCategory: category,
+    bmiRating: bmiEval.rating,
+    bmiRatingLabel: bmiEval.label,
+    bmiConditionVerdict: bmiEval.verdict,
     bmr,
     tdee,
     macros: {
@@ -107,446 +184,650 @@ export function calculateNutrition(assessment: UserAssessment): BodyMetrics {
 }
 
 /**
- * Exercise database filtered and adapted dynamically based on condition & environment
+ * Exercise Definition Template
  */
-interface ExerciseTemplate {
+interface MasterExercise {
+  id: string;
   name: string;
   targetMuscle: string;
   secondary: string[];
   equipment: 'barbell' | 'dumbbell' | 'cable' | 'machine' | 'bodyweight' | 'bands';
-  sets: number;
-  reps: string;
-  rest: number;
-  rpe: string;
-  formCue: string;
-  conditionSafetyNote?: string;
-  avoidForConditions?: BodyCondition[];
+  baseCategory: 'push' | 'pull' | 'legs' | 'core_and_mobility' | 'metabolic';
+  exerciseCategory: 'compound' | 'isolation' | 'core' | 'mobility' | 'cardio';
   allowedEnvironments: TrainingEnvironment[];
-  category: 'compound' | 'isolation' | 'core' | 'mobility' | 'cardio';
+  avoidConditions?: BodyCondition[];
+  recommendedConditions?: BodyCondition[];
+  formCue: string;
+  safetyNotes: Record<BodyCondition, string>;
   alternatives: { id: string; name: string; equipment: string; reason: string }[];
 }
 
-const EXERCISE_LIBRARY: Record<string, ExerciseTemplate[]> = {
-  push: [
-    {
-      name: 'Incline Dumbbell Bench Press',
-      targetMuscle: 'Upper Chest',
-      secondary: ['Front Delts', 'Triceps'],
-      equipment: 'dumbbell',
-      sets: 4,
-      reps: '8 - 10 reps',
-      rest: 90,
-      rpe: 'RPE 8',
-      formCue: 'Set bench to 30 degrees. Retract shoulder blades, lower with a 3-second eccentric to armpit line, press without clanking dumbbells.',
-      conditionSafetyNote: 'Highly joint-friendly for shoulders compared to flat barbell pressing.',
-      allowedEnvironments: ['commercial_gym', 'home_gym'],
-      category: 'compound',
-      alternatives: [
-        { id: 'flat_db_press', name: 'Flat Dumbbell Press', equipment: 'Dumbbells', reason: 'Focuses more on mid-pectoral fibers' },
-        { id: 'floor_press', name: 'Dumbbell Floor Press', equipment: 'Dumbbells', reason: 'Zero shoulder extension strain for shoulder care' }
-      ]
+/**
+ * Comprehensive Master Exercise Library
+ */
+const MASTER_LIBRARY: MasterExercise[] = [
+  // --- CHEST & PUSH ---
+  {
+    id: 'incline_db_press',
+    name: 'Incline Dumbbell Bench Press',
+    targetMuscle: 'Upper Chest',
+    secondary: ['Front Delts', 'Triceps'],
+    equipment: 'dumbbell',
+    baseCategory: 'push',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym', 'home_gym'],
+    recommendedConditions: ['shoulder_safe', 'healthy', 'lower_back_care'],
+    formCue: 'Set bench to 30 degrees. Retract shoulder blades, keep elbows tucked at 45 degrees, lower smoothly to collarbone level and drive upward.',
+    safetyNotes: {
+      healthy: 'Optimal upper-chest clavicular head recruitment with free rotational freedom.',
+      knee_friendly: 'Safe non-weight-bearing compound press.',
+      lower_back_care: 'Back firmly supported against angled bench; zero axial spinal compression.',
+      shoulder_safe: 'Rotator Cuff Safe: 30-degree incline and 45-degree elbow path opens the subacromial space.',
+      sedentary_posture: 'Expands tight rib cage and stretches anterior pectorals.'
     },
-    {
-      name: 'Barbell Flat Bench Press',
-      targetMuscle: 'Chest',
-      secondary: ['Triceps', 'Anterior Deltoids'],
-      equipment: 'barbell',
-      sets: 4,
-      reps: '6 - 8 reps',
-      rest: 120,
-      rpe: 'RPE 8-9',
-      formCue: 'Plant feet flat, maintain gentle lumbar arch, grip bar firmly, touch mid-chest and drive upward with leg drive.',
-      avoidForConditions: ['shoulder_safe'],
-      allowedEnvironments: ['commercial_gym'],
-      category: 'compound',
-      alternatives: [
-        { id: 'neutral_db_press', name: 'Neutral-Grip Dumbbell Press', equipment: 'Dumbbells', reason: 'Spares the rotator cuff from internal rotation' }
-      ]
+    alternatives: [
+      { id: 'floor_db_press', name: 'Dumbbell Floor Press', equipment: 'Dumbbells', reason: 'Zero shoulder hyperextension' },
+      { id: 'incline_pushup', name: 'Decline Push-Ups', equipment: 'Bodyweight', reason: 'Upper chest calisthenics' }
+    ]
+  },
+  {
+    id: 'neutral_db_press',
+    name: 'Neutral-Grip Dumbbell Flat Press',
+    targetMuscle: 'Mid Chest & Deltoids',
+    secondary: ['Triceps'],
+    equipment: 'dumbbell',
+    baseCategory: 'push',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym', 'home_gym'],
+    recommendedConditions: ['shoulder_safe', 'lower_back_care'],
+    formCue: 'Palms face directly inward toward each other throughout the repetition. Drive up smoothly without clanking weights.',
+    safetyNotes: {
+      healthy: 'Deep triceps and pec sternal head squeeze with minimal elbow strain.',
+      knee_friendly: 'Zero knee impact.',
+      lower_back_care: 'Flat bench support maintains neutral lordotic curvature.',
+      shoulder_safe: 'Neutral grip completely eliminates internal shoulder rotation and impingement.',
+      sedentary_posture: 'Stabilizes scapular retraction on bench pad.'
     },
-    {
-      name: 'Neutral-Grip Dumbbell Press',
-      targetMuscle: 'Chest & Shoulders',
-      secondary: ['Triceps'],
-      equipment: 'dumbbell',
-      sets: 4,
-      reps: '10 - 12 reps',
-      rest: 90,
-      rpe: 'RPE 7-8',
-      formCue: 'Keep palms facing inward throughout the entire repetition. This protects the acromion space and eliminates shoulder pinching.',
-      conditionSafetyNote: 'Essential modification for shoulder impingement and rotator cuff longevity.',
-      allowedEnvironments: ['commercial_gym', 'home_gym'],
-      category: 'compound',
-      alternatives: [
-        { id: 'landmine_press', name: 'Standing Landmine Press', equipment: 'Barbell', reason: 'Gentle natural upward trajectory' }
-      ]
+    alternatives: [
+      { id: 'landmine_press', name: 'Standing Landmine Press', equipment: 'Barbell', reason: 'Gentle arc trajectory' }
+    ]
+  },
+  {
+    id: 'barbell_bench_press',
+    name: 'Barbell Flat Bench Press',
+    targetMuscle: 'Pectoralis Major',
+    secondary: ['Anterior Deltoids', 'Triceps'],
+    equipment: 'barbell',
+    baseCategory: 'push',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym'],
+    avoidConditions: ['shoulder_safe'],
+    recommendedConditions: ['healthy'],
+    formCue: 'Bar over wrists, plant feet firmly, pull shoulder blades down and back, touch mid-sternum and drive explosively.',
+    safetyNotes: {
+      healthy: 'Gold standard compound movement for maximal upper-body pressing power and chest mass.',
+      knee_friendly: 'Unrestricted pressing.',
+      lower_back_care: 'Maintain gentle natural arch with feet planted; avoid violent bridging.',
+      shoulder_safe: 'Not recommended for shoulder impingement; substituted with neutral dumbbells.',
+      sedentary_posture: 'Ensure thoracic spine is arched and scaps retracted.'
     },
-    {
-      name: 'Deficit Push-Ups / Standard Push-Ups',
-      targetMuscle: 'Chest & Core',
-      secondary: ['Triceps', 'Serratus Anterior'],
-      equipment: 'bodyweight',
-      sets: 3,
-      reps: '12 - 15 reps',
-      rest: 60,
-      rpe: 'RPE 8',
-      formCue: 'Lock hips and glutes, keep neck neutral. Lower chest until 1 inch from floor, push the floor away and actively protract scapulae at top.',
-      allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
-      category: 'compound',
-      alternatives: [
-        { id: 'incline_pushup', name: 'Hands-Elevated Push-Ups', equipment: 'Bench/Box', reason: 'Reduces bodyweight percentage load for beginners' }
-      ]
+    alternatives: [
+      { id: 'neutral_db_press', name: 'Neutral-Grip DB Press', equipment: 'Dumbbells', reason: 'Joint-friendly rotator cuff clearance' }
+    ]
+  },
+  {
+    id: 'calisthenic_pushup',
+    name: 'Deficit / Tempo Push-Ups',
+    targetMuscle: 'Chest & Serratus Anterior',
+    secondary: ['Triceps', 'Core'],
+    equipment: 'bodyweight',
+    baseCategory: 'push',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    formCue: 'Rigid body plank from head to heels. Lower chest to 1 inch from floor, push the floor away and actively protract scapulae at peak.',
+    safetyNotes: {
+      healthy: 'Free-floating scapular movement builds healthy shoulders and serratus anterior control.',
+      knee_friendly: 'Zero knee torque.',
+      lower_back_care: 'Strong core engagement protects lumbar spine from sagging.',
+      shoulder_safe: 'Allows natural scapular protraction and upward rotation.',
+      sedentary_posture: 'Reactivates core stabilizers and strengthens scapular stabilizers.'
     },
-    {
-      name: 'Standing Dumbbell Lateral Raise',
-      targetMuscle: 'Lateral Deltoids',
-      secondary: ['Traps'],
-      equipment: 'dumbbell',
-      sets: 4,
-      reps: '12 - 15 reps',
-      rest: 60,
-      rpe: 'RPE 8-9',
-      formCue: 'Slight forward torso lean (15 deg), raise arms in the scapular plane (30 deg forward of torso). Lead with elbows, not wrists.',
-      conditionSafetyNote: 'Raising in scapular plane avoids subacromial impingement.',
-      allowedEnvironments: ['commercial_gym', 'home_gym'],
-      category: 'isolation',
-      alternatives: [
-        { id: 'cable_lateral_raise', name: 'Cable Lateral Raise', equipment: 'Cable', reason: 'Smooth continuous tension throughout range' },
-        { id: 'band_lateral_raise', name: 'Resistance Band Lateral Raise', equipment: 'Bands', reason: 'Zero setup required at home' }
-      ]
+    alternatives: [
+      { id: 'kneeling_pushup', name: 'Incline Hands-Elevated Push-Ups', equipment: 'Bench/Wall', reason: 'Reduced bodyweight load' }
+    ]
+  },
+  {
+    id: 'db_lateral_raise',
+    name: 'Scapular-Plane DB Lateral Raise',
+    targetMuscle: 'Lateral Deltoids',
+    secondary: ['Traps'],
+    equipment: 'dumbbell',
+    baseCategory: 'push',
+    exerciseCategory: 'isolation',
+    allowedEnvironments: ['commercial_gym', 'home_gym'],
+    formCue: 'Slight 15-degree forward torso lean. Raise dumbbells 30 degrees in front of torso (scapular plane), leading with elbows.',
+    safetyNotes: {
+      healthy: 'Builds wide 3D shoulder caps.',
+      knee_friendly: 'Non-impact.',
+      lower_back_care: 'Perform seated if lumbar fatigue is present.',
+      shoulder_safe: 'Raising in scapular plane prevents subacromial tendon pinching.',
+      sedentary_posture: 'Keeps shoulders pinned back.'
     },
-    {
-      name: 'Overhead Cable / DB Triceps Extension',
-      targetMuscle: 'Triceps (Long Head)',
-      secondary: [],
-      equipment: 'dumbbell',
-      sets: 3,
-      reps: '10 - 12 reps',
-      rest: 60,
-      rpe: 'RPE 8',
-      formCue: 'Keep elbows tucked beside ears, lower weight behind head to achieve full long-head stretch, extend fully without locking hard.',
-      allowedEnvironments: ['commercial_gym', 'home_gym'],
-      category: 'isolation',
-      alternatives: [
-        { id: 'cable_rope_pushdown', name: 'Cable Rope Pushdown', equipment: 'Cable', reason: 'Less elbow stress, great lateral head squeeze' }
-      ]
-    }
-  ],
+    alternatives: [
+      { id: 'band_lateral_raise', name: 'Resistance Band Lateral Raise', equipment: 'Bands', reason: 'Smooth continuous tension' }
+    ]
+  },
+  {
+    id: 'triceps_overhead_ext',
+    name: 'Overhead DB / Band Triceps Extension',
+    targetMuscle: 'Triceps (Long Head)',
+    secondary: [],
+    equipment: 'dumbbell',
+    baseCategory: 'push',
+    exerciseCategory: 'isolation',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    formCue: 'Elbows tucked beside ears. Lower dumbbell behind head for a deep stretch on the long head, extend without flaring elbows.',
+    safetyNotes: {
+      healthy: 'Maximal long-head stretch for complete arm thickness.',
+      knee_friendly: 'Zero impact.',
+      lower_back_care: 'Perform seated with back supported to avoid arching.',
+      shoulder_safe: 'Keep elbows tucked to protect rotator cuff.',
+      sedentary_posture: 'Promotes thoracic spine extension.'
+    },
+    alternatives: [
+      { id: 'diamond_pushup', name: 'Diamond / Close-Grip Push-Ups', equipment: 'Bodyweight', reason: 'Calisthenics arm builder' }
+    ]
+  },
 
-  pull: [
-    {
-      name: 'Chest-Supported Dumbbell Row',
-      targetMuscle: 'Mid-Back & Lats',
-      secondary: ['Biceps', 'Rear Delts'],
-      equipment: 'dumbbell',
-      sets: 4,
-      reps: '10 - 12 reps',
-      rest: 90,
-      rpe: 'RPE 8',
-      formCue: 'Lie chest-down on 30-degree incline bench. Pull dumbbells towards hips, squeeze shoulder blades together for 1 full second at top.',
-      conditionSafetyNote: 'Zero axial loading on the lumbar spine. Safest back builder for lower back care.',
-      allowedEnvironments: ['commercial_gym', 'home_gym'],
-      category: 'compound',
-      alternatives: [
-        { id: 'cable_seated_row', name: 'Seated Cable Row with Neutral Grip', equipment: 'Cable', reason: 'Controlled spine angle and steady resistance' }
-      ]
+  // --- BACK & PULL ---
+  {
+    id: 'chest_supported_db_row',
+    name: 'Chest-Supported Incline DB Row',
+    targetMuscle: 'Mid-Back & Rhomboids',
+    secondary: ['Lats', 'Biceps', 'Rear Delts'],
+    equipment: 'dumbbell',
+    baseCategory: 'pull',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym', 'home_gym'],
+    recommendedConditions: ['lower_back_care', 'sedentary_posture', 'healthy'],
+    formCue: 'Lie chest-down on 30-degree bench. Pull dumbbells towards hips, squeeze shoulder blades together for a full 1-second peak pause.',
+    safetyNotes: {
+      healthy: 'Strict isolation of upper and mid-back without swinging momentum.',
+      knee_friendly: 'Zero leg loading.',
+      lower_back_care: 'Spinal Decompression: The bench supports your entire torso, completely eliminating spinal compression.',
+      shoulder_safe: 'Neutral hand grip protects rotator cuff.',
+      sedentary_posture: 'Gold standard exercise to reverse rounded shoulders and desk hunch.'
     },
-    {
-      name: 'Conventional Barbell Deadlift',
-      targetMuscle: 'Posterior Chain (Hamstrings, Glutes, Erector Spinae)',
-      secondary: ['Lats', 'Traps', 'Forearms'],
-      equipment: 'barbell',
-      sets: 3,
-      reps: '5 - 6 reps',
-      rest: 150,
-      rpe: 'RPE 8',
-      formCue: 'Bar over midfoot, pull chest tall to set lats, wedge hips, push floor away through heels without rounding lumbar spine.',
-      avoidForConditions: ['lower_back_care', 'knee_friendly'],
-      allowedEnvironments: ['commercial_gym'],
-      category: 'compound',
-      alternatives: [
-        { id: 'trap_bar_deadlift', name: 'Trap Bar Deadlift (High Handles)', equipment: 'Trap Bar', reason: 'More upright torso, significantly less shear force on lower back' }
-      ]
+    alternatives: [
+      { id: 'cable_seated_row', name: 'Seated Neutral Cable Row', equipment: 'Cable', reason: 'Continuous tension' }
+    ]
+  },
+  {
+    id: 'lat_pulldown_neutral',
+    name: 'Neutral-Grip Lat Pulldown / Assisted Pull-Up',
+    targetMuscle: 'Latissimus Dorsi',
+    secondary: ['Biceps', 'Brachialis'],
+    equipment: 'cable',
+    baseCategory: 'pull',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym'],
+    recommendedConditions: ['lower_back_care', 'shoulder_safe'],
+    formCue: 'Slight 10-degree lean back. Depress shoulder blades down, pull elbows into your back pockets, control 3-second ascent.',
+    safetyNotes: {
+      healthy: 'Builds wide V-taper lats.',
+      knee_friendly: 'Seated with zero knee loading.',
+      lower_back_care: 'Decompresses the spine vertically while strengthening lats.',
+      shoulder_safe: 'Neutral or shoulder-width grip eliminates impingement.',
+      sedentary_posture: 'Strengthens lower and middle trap stabilizers.'
     },
-    {
-      name: 'Lat Pulldown / Assisted Pull-Up',
-      targetMuscle: 'Latissimus Dorsi',
-      secondary: ['Biceps', 'Rear Delts'],
-      equipment: 'cable',
-      sets: 4,
-      reps: '8 - 12 reps',
-      rest: 75,
-      rpe: 'RPE 8',
-      formCue: 'Lean back slightly (10 deg), initiate pull by depressing scapulae down and driving elbows down into back pockets.',
-      allowedEnvironments: ['commercial_gym'],
-      category: 'compound',
-      alternatives: [
-        { id: 'incline_db_pullover', name: 'Dumbbell Pullover', equipment: 'Dumbbell', reason: 'Great lat stretch for home gyms' },
-        { id: 'band_pulldown', name: 'Banded Lat Pulldown', equipment: 'Bands', reason: 'Ideal home/bodyweight alternative' }
-      ]
+    alternatives: [
+      { id: 'band_lat_pulldown', name: 'Banded Lat Pulldown', equipment: 'Bands', reason: 'Home gym friendly' }
+    ]
+  },
+  {
+    id: 'barbell_deadlift',
+    name: 'Conventional Barbell Deadlift',
+    targetMuscle: 'Posterior Chain (Hamstrings, Glutes, Erectors)',
+    secondary: ['Upper Back', 'Grip', 'Core'],
+    equipment: 'barbell',
+    baseCategory: 'pull',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym'],
+    avoidConditions: ['lower_back_care', 'knee_friendly'],
+    recommendedConditions: ['healthy'],
+    formCue: 'Bar over midfoot, lock lats tight, wedge hips down, push floor away through heels without rounding lower back.',
+    safetyNotes: {
+      healthy: 'Unmatched king of posterior chain strength, dense spinal erectors, and full-body athletic power.',
+      knee_friendly: 'Avoided for knee sensitivity; substituted with Romanian Deadlifts.',
+      lower_back_care: 'Avoided to prevent heavy spinal shear force; substituted with chest-supported rows and RDLs.',
+      shoulder_safe: 'Keep arms long like ropes.',
+      sedentary_posture: 'Builds iron posterior chain.'
     },
-    {
-      name: 'Inverted Bodyweight Row / Doorframe Row',
-      targetMuscle: 'Upper Back & Rhomboids',
-      secondary: ['Biceps', 'Core'],
-      equipment: 'bodyweight',
-      sets: 4,
-      reps: '10 - 15 reps',
-      rest: 60,
-      rpe: 'RPE 8',
-      formCue: 'Keep body in rigid plank from head to heels. Pull sternum towards bar or anchor, squeeze scapulae without shrugging traps.',
-      allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
-      category: 'compound',
-      alternatives: [
-        { id: 'towel_door_row', name: 'Towel Door Rows', equipment: 'Bodyweight', reason: 'Zero equipment home back builder' }
-      ]
+    alternatives: [
+      { id: 'trap_bar_dl', name: 'Trap Bar Deadlift (High Handles)', equipment: 'Trap Bar', reason: 'Upright torso relieves lumbar stress' }
+    ]
+  },
+  {
+    id: 'inverted_bodyweight_row',
+    name: 'Inverted Bodyweight Row / Doorframe Row',
+    targetMuscle: 'Upper Back & Posterior Delts',
+    secondary: ['Biceps', 'Core'],
+    equipment: 'bodyweight',
+    baseCategory: 'pull',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    recommendedConditions: ['lower_back_care', 'sedentary_posture', 'healthy'],
+    formCue: 'Hold bar or doorframe anchor, keep body rigid like a plank. Pull sternum towards bar, squeeze shoulder blades firmly.',
+    safetyNotes: {
+      healthy: 'Exceptional relative horizontal pulling strength.',
+      knee_friendly: 'Zero knee torque.',
+      lower_back_care: 'Core remains horizontal; zero compressive axial load on lumbar discs.',
+      shoulder_safe: 'Natural scapular retraction.',
+      sedentary_posture: 'Directly counters desk slouching.'
     },
-    {
-      name: 'Face Pulls with External Rotation',
-      targetMuscle: 'Rear Deltoids & Rotator Cuff',
-      secondary: ['Rhomboids', 'Lower Traps'],
-      equipment: 'cable',
-      sets: 3,
-      reps: '15 - 20 reps',
-      rest: 60,
-      rpe: 'RPE 7-8',
-      formCue: 'Set rope to eye height. Pull rope towards nose while rotating thumbs backwards. Squeeze rear delts and hold for 2 seconds.',
-      conditionSafetyNote: 'Crucial for reversing desk hunch, improving thoracic posture, and stabilizing the shoulder joint.',
-      allowedEnvironments: ['commercial_gym'],
-      category: 'isolation',
-      alternatives: [
-        { id: 'band_pullapart', name: 'Banded Face Pull / Pull-Apart', equipment: 'Bands', reason: 'Can be done anywhere anytime' }
-      ]
+    alternatives: [
+      { id: 'towel_door_row', name: 'Towel Door Rows', equipment: 'Bodyweight', reason: 'Zero equipment anywhere' }
+    ]
+  },
+  {
+    id: 'face_pull_rotator',
+    name: 'Cable / Band Face Pull with External Rotation',
+    targetMuscle: 'Rear Delts & Rotator Cuff (Infraspinatus)',
+    secondary: ['Lower Traps', 'Rhomboids'],
+    equipment: 'cable',
+    baseCategory: 'pull',
+    exerciseCategory: 'isolation',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    recommendedConditions: ['shoulder_safe', 'sedentary_posture', 'lower_back_care'],
+    formCue: 'Set cable at face height. Pull towards bridge of nose while rotating thumbs backwards. Hold peak contraction for 2 full seconds.',
+    safetyNotes: {
+      healthy: 'Essential shoulder health insurance for all heavy benchers.',
+      knee_friendly: 'Non-impact.',
+      lower_back_care: 'Keep ribcage down and glutes braced.',
+      shoulder_safe: 'Strengthens external rotators, stabilizing the humerus in the glenoid fossa.',
+      sedentary_posture: 'Directly reverses internal rotation from keyboard and phone posture.'
     },
-    {
-      name: 'Incline Dumbbell Biceps Curl',
-      targetMuscle: 'Biceps (Long Head)',
-      secondary: ['Forearms'],
-      equipment: 'dumbbell',
-      sets: 3,
-      reps: '10 - 12 reps',
-      rest: 60,
-      rpe: 'RPE 8',
-      formCue: 'Lie back on 45-degree bench with arms hanging down. Curl upward while keeping upper arms strictly perpendicular to ground.',
-      allowedEnvironments: ['commercial_gym', 'home_gym'],
-      category: 'isolation',
-      alternatives: [
-        { id: 'hammer_curl', name: 'Dumbbell Hammer Curl', equipment: 'Dumbbells', reason: 'Spares wrist joints, targets brachialis for arm thickness' }
-      ]
-    }
-  ],
+    alternatives: [
+      { id: 'band_pullapart', name: 'Banded Pull-Apart', equipment: 'Bands', reason: 'Do anytime anywhere' }
+    ]
+  },
+  {
+    id: 'incline_biceps_curl',
+    name: 'Incline DB / Hammer Biceps Curl',
+    targetMuscle: 'Biceps Brachii & Brachialis',
+    secondary: ['Forearms'],
+    equipment: 'dumbbell',
+    baseCategory: 'pull',
+    exerciseCategory: 'isolation',
+    allowedEnvironments: ['commercial_gym', 'home_gym'],
+    formCue: 'Keep elbows strictly fixed at your sides. Curl upward with controlled cadence, squeeze peak biceps, lower over 3 seconds.',
+    safetyNotes: {
+      healthy: 'Full range biceps stretch and peak contraction.',
+      knee_friendly: 'Zero impact.',
+      lower_back_care: 'Seated against bench prevents cheating with lower back momentum.',
+      shoulder_safe: 'Hammer grip spares wrist and bicipital tendon.',
+      sedentary_posture: 'Improves arm alignment.'
+    },
+    alternatives: [
+      { id: 'chinup_eccentric', name: 'Underhand Inverted Row / Chin-Up', equipment: 'Bodyweight', reason: 'Calisthenics biceps builder' }
+    ]
+  },
 
-  legs: [
-    {
-      name: 'Romanian Deadlift (RDL)',
-      targetMuscle: 'Hamstrings & Glutes',
-      secondary: ['Erectors', 'Adductors'],
-      equipment: 'dumbbell',
-      sets: 4,
-      reps: '8 - 10 reps',
-      rest: 90,
-      rpe: 'RPE 8',
-      formCue: 'Soft unlock at knees, push hips back like shutting a car door with glutes. Stop when hamstrings reach full stretch below knees, drive hips forward to lockout.',
-      conditionSafetyNote: 'Knee-friendly: Maintains vertical shin angle, eliminating shear pressure on the patella.',
-      allowedEnvironments: ['commercial_gym', 'home_gym'],
-      category: 'compound',
-      alternatives: [
-        { id: 'single_leg_rdl', name: 'Single-Leg Dumbbell RDL', equipment: 'Dumbbell', reason: 'Unilateral stability with minimal spinal load' }
-      ]
+  // --- LEGS & POSTERIOR CHAIN ---
+  {
+    id: 'romanian_deadlift',
+    name: 'Romanian Deadlift (RDL)',
+    targetMuscle: 'Hamstrings & Gluteus Maximus',
+    secondary: ['Erector Spinae', 'Adductors'],
+    equipment: 'dumbbell',
+    baseCategory: 'legs',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym', 'home_gym'],
+    recommendedConditions: ['knee_friendly', 'healthy', 'sedentary_posture'],
+    formCue: 'Slight unlock in knees, push hips backward like shutting a car door with glutes. Stop when hamstrings reach full stretch below knees, drive hips forward.',
+    safetyNotes: {
+      healthy: 'Premier hamstring hypertrophy movement with massive eccentric overload.',
+      knee_friendly: 'Knee Safeguard: Tibia remains strictly vertical; zero forward knee migration and zero patellar tendon shear.',
+      lower_back_care: 'Keep dumbbells tight against thighs; stop before spine flexes.',
+      shoulder_safe: 'Arms stay straight.',
+      sedentary_posture: 'Lengthens tight hamstrings and fires dormant glutes.'
     },
-    {
-      name: 'Bulgarian Split Squat',
-      targetMuscle: 'Quadriceps & Glute Max',
-      secondary: ['Adductors', 'Calves'],
-      equipment: 'dumbbell',
-      sets: 3,
-      reps: '8 - 10 reps per leg',
-      rest: 90,
-      rpe: 'RPE 8-9',
-      formCue: 'Rear foot elevated on bench, torso tilted slightly forward. Descend until front thigh is parallel, push through front mid-foot and heel.',
-      conditionSafetyNote: 'Massive leg hypertrophy stimulus with half the spinal load of barbell back squats.',
-      allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
-      category: 'compound',
-      alternatives: [
-        { id: 'reverse_lunge', name: 'Dumbbell Reverse Lunge', equipment: 'Dumbbells', reason: 'Slightly easier balance, exceptional knee safety' }
-      ]
+    alternatives: [
+      { id: 'single_leg_rdl', name: 'Single-Leg Dumbbell RDL', equipment: 'Dumbbell', reason: 'Unilateral balance with half the load' }
+    ]
+  },
+  {
+    id: 'bulgarian_split_squat',
+    name: 'Bulgarian Split Squat (Vertical Tibia)',
+    targetMuscle: 'Quadriceps & Glutes',
+    secondary: ['Adductors', 'Calves'],
+    equipment: 'dumbbell',
+    baseCategory: 'legs',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    recommendedConditions: ['knee_friendly', 'lower_back_care', 'healthy'],
+    formCue: 'Rear foot elevated on bench, torso tilted slightly forward. Descend keeping front knee over midfoot without excessive forward drive, push through front heel.',
+    safetyNotes: {
+      healthy: 'Brutal leg hypertrophy builder that fixes side-to-side muscle imbalances.',
+      knee_friendly: 'Vertical Shin Cue: Positioning front foot slightly further forward keeps shin vertical and transfers load from knee to glute.',
+      lower_back_care: 'Requires half the load of a back squat, vastly reducing spinal compression.',
+      shoulder_safe: 'Dumbbells hang naturally at sides.',
+      sedentary_posture: 'Opens rear hip flexor while strengthening front leg.'
     },
-    {
-      name: 'Barbell Back Squat',
-      targetMuscle: 'Quads & Glutes',
-      secondary: ['Core', 'Adductors'],
-      equipment: 'barbell',
-      sets: 4,
-      reps: '6 - 8 reps',
-      rest: 120,
-      rpe: 'RPE 8',
-      formCue: 'Brace core with diaphragmatic breath, sit back and down between knees, reach hip crease below knee cap, drive up through whole foot.',
-      avoidForConditions: ['lower_back_care', 'knee_friendly'],
-      allowedEnvironments: ['commercial_gym'],
-      category: 'compound',
-      alternatives: [
-        { id: 'goblet_squat', name: 'Heavy Goblet Squat', equipment: 'Dumbbell/Kettlebell', reason: 'Upright posture relieves lumbar spine stress' }
-      ]
+    alternatives: [
+      { id: 'reverse_lunge', name: 'Dumbbell Reverse Lunge', equipment: 'Dumbbells', reason: 'Gentle step-back mechanics' }
+    ]
+  },
+  {
+    id: 'barbell_back_squat',
+    name: 'Barbell Back Squat',
+    targetMuscle: 'Quadriceps & Core',
+    secondary: ['Glutes', 'Adductors'],
+    equipment: 'barbell',
+    baseCategory: 'legs',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym'],
+    avoidConditions: ['knee_friendly', 'lower_back_care'],
+    recommendedConditions: ['healthy'],
+    formCue: 'Brace core with diaphragmatic breath, sit back and down between knees to parallel, drive up aggressively through entire foot.',
+    safetyNotes: {
+      healthy: 'Unrivaled foundation for maximal leg mass, explosive jumping power, and systemic strength.',
+      knee_friendly: 'Avoided for knee sensitivity; substituted with vertical-shin Bulgarian Split Squats and RDLs.',
+      lower_back_care: 'Avoided to prevent heavy spinal axial compression; substituted with Goblet Squats.',
+      shoulder_safe: 'Use high bar or safety squat bar if shoulder mobility is restricted.',
+      sedentary_posture: 'Ensure adequate hip and ankle mobility.'
     },
-    {
-      name: 'Barbell / Dumbbell Hip Thrust',
-      targetMuscle: 'Gluteus Maximus',
-      secondary: ['Hamstrings'],
-      equipment: 'barbell',
-      sets: 3,
-      reps: '10 - 12 reps',
-      rest: 90,
-      rpe: 'RPE 8',
-      formCue: 'Upper back across bench, chin tucked. Drive through heels to full horizontal hip extension, hold 1 second at apex, don’t hyperextend lumbar spine.',
-      conditionSafetyNote: 'Zero vertical spinal compression, knee-friendly horizontal vector.',
-      allowedEnvironments: ['commercial_gym', 'home_gym'],
-      category: 'compound',
-      alternatives: [
-        { id: 'single_leg_glute_bridge', name: 'Single-Leg Glute Bridge', equipment: 'Bodyweight', reason: 'Exceptional glute firing for posture rehab' }
-      ]
+    alternatives: [
+      { id: 'goblet_squat', name: 'Heavy Dumbbell Goblet Squat', equipment: 'Dumbbell', reason: 'Upright torso relieves lower back' }
+    ]
+  },
+  {
+    id: 'goblet_squat',
+    name: 'Upright Goblet Squat / Box Squat',
+    targetMuscle: 'Quads & Anterior Core',
+    secondary: ['Glutes'],
+    equipment: 'dumbbell',
+    baseCategory: 'legs',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    recommendedConditions: ['lower_back_care', 'sedentary_posture'],
+    formCue: 'Hold dumbbell vertically against chest. Squat down with upright torso, spread knees, sit back onto box or to parallel, drive up.',
+    safetyNotes: {
+      healthy: 'Clean squat mechanics with high quad activation.',
+      knee_friendly: 'Box squat eliminates knee bouncing at the bottom.',
+      lower_back_care: 'The front weight counterbalances the torso, allowing you to stay completely vertical and avoid lumbar shear.',
+      shoulder_safe: 'No shoulder extension required.',
+      sedentary_posture: 'Teaches proper hip hinge and squat depth.'
     },
-    {
-      name: 'Standing Calf Raise',
-      targetMuscle: 'Gastrocnemius & Soleus',
-      secondary: [],
-      equipment: 'dumbbell',
-      sets: 4,
-      reps: '12 - 15 reps',
-      rest: 60,
-      rpe: 'RPE 8-9',
-      formCue: 'Full stretch at bottom for 2 seconds (eliminating tendon bounce), drive up onto big toe ball, squeeze calf at peak for 1 second.',
-      allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
-      category: 'isolation',
-      alternatives: [
-        { id: 'single_leg_stair_calf', name: 'Single-Leg Staircase Calf Raise', equipment: 'Bodyweight', reason: 'Full ankle dorsiflexion stretch' }
-      ]
-    }
-  ],
+    alternatives: [
+      { id: 'bodyweight_squat', name: 'Tempo Air Squats', equipment: 'Bodyweight', reason: 'Zero equipment' }
+    ]
+  },
+  {
+    id: 'hip_thrust',
+    name: 'Barbell / Dumbbell Hip Thrust',
+    targetMuscle: 'Gluteus Maximus',
+    secondary: ['Hamstrings'],
+    equipment: 'dumbbell',
+    baseCategory: 'legs',
+    exerciseCategory: 'compound',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    recommendedConditions: ['knee_friendly', 'lower_back_care', 'sedentary_posture', 'healthy'],
+    formCue: 'Upper back against bench, chin tucked. Drive through heels to full horizontal hip lockout, squeeze glutes hard for 1 second at top.',
+    safetyNotes: {
+      healthy: 'Highest EMG glute activation of any exercise for sprinting and athletic glute power.',
+      knee_friendly: 'Horizontal force vector completely eliminates knee shear force.',
+      lower_back_care: 'Zero vertical spinal compression; keep ribs down to prevent hyperextending lumbar spine.',
+      shoulder_safe: 'Non-stressful on upper body.',
+      sedentary_posture: 'Reverses "glute amnesia" caused by sitting in a chair all day.'
+    },
+    alternatives: [
+      { id: 'glute_bridge', name: 'Single-Leg Glute Bridge', equipment: 'Bodyweight', reason: 'Exceptional glute firing anywhere' }
+    ]
+  },
+  {
+    id: 'standing_calf_raise',
+    name: 'Standing Calf Raise (Slow Eccentric)',
+    targetMuscle: 'Gastrocnemius & Soleus',
+    secondary: ['Achilles Tendon'],
+    equipment: 'dumbbell',
+    baseCategory: 'legs',
+    exerciseCategory: 'isolation',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    formCue: 'Pause at bottom for 2 full seconds to eliminate Achilles elastic bounce. Rise onto balls of big toes, squeeze calf peak for 1 second.',
+    safetyNotes: {
+      healthy: 'Dense lower leg hypertrophy and ankle stabilization.',
+      knee_friendly: 'Straight leg position is safe for patella.',
+      lower_back_care: 'Hold dumbbells at sides.',
+      shoulder_safe: 'Zero shoulder loading.',
+      sedentary_posture: 'Restores ankle dorsiflexion mobility.'
+    },
+    alternatives: [
+      { id: 'stair_calf_raise', name: 'Single-Leg Staircase Calf Raise', equipment: 'Bodyweight', reason: 'Full stretch range' }
+    ]
+  },
 
-  core_and_mobility: [
-    {
-      name: 'Pallof Press (Anti-Rotation)',
-      targetMuscle: 'Transverse Abdominis & Obliques',
-      secondary: ['Glutes'],
-      equipment: 'cable',
-      sets: 3,
-      reps: '10 reps / side (hold 3s)',
-      rest: 60,
-      rpe: 'RPE 7-8',
-      formCue: 'Athletic stance, hold cable or band at center of sternum. Press straight out without allowing torso to twist 1 millimeter.',
-      conditionSafetyNote: 'Gold standard core stabilization for lower back rehabilitation and spinal health.',
-      allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
-      category: 'core',
-      alternatives: [
-        { id: 'band_pallof', name: 'Resistance Band Pallof Press', equipment: 'Bands', reason: 'Easily attached to any post or door' }
-      ]
+  // --- CORE, MOBILITY & METABOLIC ---
+  {
+    id: 'pallof_press',
+    name: 'Pallof Anti-Rotation Press',
+    targetMuscle: 'Transverse Abdominis & Obliques',
+    secondary: ['Glutes', 'Quadratus Lumborum'],
+    equipment: 'cable',
+    baseCategory: 'core_and_mobility',
+    exerciseCategory: 'core',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    recommendedConditions: ['lower_back_care', 'sedentary_posture', 'healthy'],
+    formCue: 'Athletic stance, hold cable or band at sternum. Press straight out, hold for 3 seconds without letting torso twist a single millimeter.',
+    safetyNotes: {
+      healthy: 'Essential rotational core armor for transferring athletic power.',
+      knee_friendly: 'Static athletic stance.',
+      lower_back_care: 'Gold Standard Spine Rehab: Trains core to resist rotation, which is the primary cause of disc herniation.',
+      shoulder_safe: 'Held at chest height.',
+      sedentary_posture: 'Locks pelvic alignment in neutral.'
     },
-    {
-      name: 'Deadbug / Bird-Dog Dynamic Pair',
-      targetMuscle: 'Deep Core & Spinal Stabilizers',
-      secondary: ['Hip Flexors'],
-      equipment: 'bodyweight',
-      sets: 3,
-      reps: '8 reps per side (controlled)',
-      rest: 45,
-      rpe: 'RPE 7',
-      formCue: 'Push lower back flat against the floor. Extend opposite arm and leg slowly while keeping rib cage down. Exhale completely on extension.',
-      conditionSafetyNote: 'Safest therapeutic core activation for posture and back relief.',
-      allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
-      category: 'core',
-      alternatives: [
-        { id: 'plank_reach', name: 'Forearm Plank with Arm Reach', equipment: 'Bodyweight', reason: 'High anti-extension challenge' }
-      ]
+    alternatives: [
+      { id: 'band_pallof', name: 'Resistance Band Pallof Press', equipment: 'Bands', reason: 'Hook to any door or post' }
+    ]
+  },
+  {
+    id: 'deadbug_birddog',
+    name: 'Deadbug & Bird-Dog Dynamic Pair',
+    targetMuscle: 'Deep Spinal Stabilizers & Multifidus',
+    secondary: ['Rectus Abdominis', 'Glutes'],
+    equipment: 'bodyweight',
+    baseCategory: 'core_and_mobility',
+    exerciseCategory: 'core',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    recommendedConditions: ['lower_back_care', 'sedentary_posture'],
+    formCue: 'Push lower back flat against floor. Extend opposite arm and leg slowly while exhaling fully. Never let lower back arch off floor.',
+    safetyNotes: {
+      healthy: 'Develops supreme lumbo-pelvic neuromuscular control.',
+      knee_friendly: 'Zero joint compression.',
+      lower_back_care: 'McGill Big 3 Foundation: Proven by spine biomechanics researchers to relieve lumbar compression.',
+      shoulder_safe: 'Gentle overhead reaching.',
+      sedentary_posture: 'Re-establishes cross-body neural pathways and resets posture.'
     },
-    {
-      name: 'Hanging Knee / Leg Raises',
-      targetMuscle: 'Lower Rectus Abdominis',
-      secondary: ['Hip Flexors', 'Grip'],
-      equipment: 'bodyweight',
-      sets: 3,
-      reps: '10 - 15 reps',
-      rest: 60,
-      rpe: 'RPE 8',
-      formCue: 'Hang from bar without swinging. Curl pelvis upward towards ribcage (posterior pelvic tilt) to engage abs rather than just hip flexors.',
-      allowedEnvironments: ['commercial_gym', 'home_gym'],
-      category: 'core',
-      alternatives: [
-        { id: 'reverse_crunch', name: 'Decline Bench / Mat Reverse Crunch', equipment: 'Mat', reason: 'Controlled pelvis curl without grip fatigue' }
-      ]
-    }
-  ]
-};
+    alternatives: [
+      { id: 'forearm_plank', name: 'Hardstyle Forearm Plank', equipment: 'Bodyweight', reason: 'High anti-extension tension' }
+    ]
+  },
+  {
+    id: 'hanging_knee_raise',
+    name: 'Hanging Knee Raise / Reverse Crunch',
+    targetMuscle: 'Lower Rectus Abdominis',
+    secondary: ['Hip Flexors', 'Grip'],
+    equipment: 'bodyweight',
+    baseCategory: 'core_and_mobility',
+    exerciseCategory: 'core',
+    allowedEnvironments: ['commercial_gym', 'home_gym', 'bodyweight'],
+    formCue: 'Hang from bar or lie on mat. Curl pelvis upward towards ribcage (posterior pelvic tilt) to contract abs rather than just hip flexors.',
+    safetyNotes: {
+      healthy: 'Chiseled lower abdominal definition.',
+      knee_friendly: 'Non-impact.',
+      lower_back_care: 'Decompresses the lumbar spine while hanging.',
+      shoulder_safe: 'Use mat reverse crunches if hanging strains shoulders.',
+      sedentary_posture: 'Counters anterior pelvic tilt.'
+    },
+    alternatives: [
+      { id: 'reverse_crunch', name: 'Mat Reverse Crunch', equipment: 'Bodyweight', reason: 'No hanging required' }
+    ]
+  },
+  {
+    id: 'kettlebell_swing',
+    name: 'Kettlebell / DB Hip Hinge Swing',
+    targetMuscle: 'Posterior Chain & Cardiovascular Engine',
+    secondary: ['Hamstrings', 'Glutes', 'Core'],
+    equipment: 'dumbbell',
+    baseCategory: 'metabolic',
+    exerciseCategory: 'cardio',
+    allowedEnvironments: ['commercial_gym', 'home_gym'],
+    recommendedConditions: ['knee_friendly', 'healthy'],
+    formCue: 'Hinge at hips, snap glutes forward aggressively. The bell floats to chest height powered purely by hip drive, not arms.',
+    safetyNotes: {
+      healthy: 'Massive metabolic calorie burn and explosive hip power.',
+      knee_friendly: 'Pure hip hinge; zero knee forward travel.',
+      lower_back_care: 'Ensure core is braced; avoid hyperextending at top.',
+      shoulder_safe: 'Arms act as loose pendulum.',
+      sedentary_posture: 'Explosive glute wake-up call.'
+    },
+    alternatives: [
+      { id: 'jump_rope', name: 'Speed Rope Intervals', equipment: 'Bodyweight', reason: 'Cardio conditioning' }
+    ]
+  }
+];
 
 /**
- * Filter exercises matching user's body condition and training environment
+ * Filter and calibrate exercise sets, reps, rest and safety note according to user's exact condition, goal, and gear
  */
-function selectExercise(
-  categoryKey: 'push' | 'pull' | 'legs' | 'core_and_mobility',
-  condition: BodyCondition,
-  environment: TrainingEnvironment,
-  preferredMuscle?: string
+function buildCalibratedExercise(
+  categoryKey: 'push' | 'pull' | 'legs' | 'core_and_mobility' | 'metabolic',
+  preferredMuscle: string,
+  assessment: UserAssessment
 ): Exercise {
-  const pool = EXERCISE_LIBRARY[categoryKey];
-  
-  // Find candidates that do NOT have the avoid condition
-  const candidates = pool.filter(ex => {
-    if (ex.avoidForConditions && ex.avoidForConditions.includes(condition)) {
-      return false;
-    }
-    // Check environment support
-    if (environment === 'bodyweight') {
-      return ex.equipment === 'bodyweight' || ex.equipment === 'bands';
-    } else if (environment === 'home_gym') {
-      return ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight' || ex.equipment === 'bands';
-    }
-    return true; // commercial_gym supports everything
+  const condition = assessment.bodyCondition;
+  const goal = assessment.goal;
+  const env = assessment.trainingEnvironment;
+
+  // Filter exercises matching category
+  let candidates = MASTER_LIBRARY.filter(ex => ex.baseCategory === categoryKey);
+
+  // Filter out avoided conditions
+  candidates = candidates.filter(ex => !ex.avoidConditions || !ex.avoidConditions.includes(condition));
+
+  // Filter environment compatibility
+  candidates = candidates.filter(ex => {
+    if (env === 'bodyweight') return ex.equipment === 'bodyweight' || ex.equipment === 'bands';
+    if (env === 'home_gym') return ex.equipment === 'dumbbell' || ex.equipment === 'bodyweight' || ex.equipment === 'bands';
+    return true;
   });
 
-  const selected = candidates.length > 0 
-    ? (preferredMuscle ? (candidates.find(c => c.targetMuscle.toLowerCase().includes(preferredMuscle.toLowerCase())) || candidates[0]) : candidates[0])
-    : pool[0];
+  // If no match found, fallback to category pool
+  if (candidates.length === 0) {
+    candidates = MASTER_LIBRARY.filter(ex => ex.baseCategory === categoryKey);
+  }
+
+  // Prioritize exercises specifically recommended for this condition or muscle
+  let chosen = candidates.find(c => c.recommendedConditions && c.recommendedConditions.includes(condition) && c.targetMuscle.toLowerCase().includes(preferredMuscle.toLowerCase()));
+  if (!chosen) {
+    chosen = candidates.find(c => c.targetMuscle.toLowerCase().includes(preferredMuscle.toLowerCase()));
+  }
+  if (!chosen) {
+    chosen = candidates[0] || MASTER_LIBRARY[0];
+  }
+
+  // Calibrate sets, reps, rest, and RPE dynamically according to user's GOAL
+  let sets = 4;
+  let reps = '8 - 10 reps';
+  let restSeconds = 90;
+  let rpe = 'RPE 8';
+
+  switch (goal) {
+    case 'weight_gain':
+      // Hypertrophy Mass & Overload: Heavy volume, moderate reps, longer rest
+      sets = chosen.exerciseCategory === 'compound' ? 4 : 3;
+      reps = chosen.exerciseCategory === 'compound' ? '6 - 8 reps' : '8 - 10 reps';
+      restSeconds = chosen.exerciseCategory === 'compound' ? 120 : 90;
+      rpe = 'RPE 8-9';
+      break;
+
+    case 'weight_loss':
+      // Metabolic Shred: Higher rep density, short rest, high caloric expenditure
+      sets = chosen.exerciseCategory === 'compound' ? 4 : 3;
+      reps = chosen.exerciseCategory === 'compound' ? '12 - 15 reps' : '15 - 20 reps';
+      restSeconds = chosen.exerciseCategory === 'compound' ? 60 : 45;
+      rpe = 'RPE 7-8 (Metabolic Tempo)';
+      break;
+
+    case 'muscle_building':
+      // Recomposition & Strength: Compound strength + isolation tension
+      sets = chosen.exerciseCategory === 'compound' ? 4 : 3;
+      reps = chosen.exerciseCategory === 'compound' ? '8 - 10 reps' : '10 - 12 reps';
+      restSeconds = chosen.exerciseCategory === 'compound' ? 90 : 60;
+      rpe = 'RPE 8';
+      break;
+
+    case 'remain_fit':
+      // Functional Stamina & Mobility: Controlled tempo, joint longevity
+      sets = 3;
+      reps = '12 - 15 reps (Controlled)';
+      restSeconds = 60;
+      rpe = 'RPE 7';
+      break;
+  }
+
+  // Get condition-specific safety explanation
+  const conditionSafetyNote = chosen.safetyNotes[condition] || chosen.safetyNotes.healthy;
 
   return {
-    id: `${categoryKey}_${selected.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-    name: selected.name,
-    targetMuscle: selected.targetMuscle,
-    secondaryMuscles: selected.secondary,
-    equipment: selected.equipment,
-    sets: selected.sets,
-    reps: selected.reps,
-    restSeconds: selected.rest,
-    rpe: selected.rpe,
-    formCue: selected.formCue,
-    conditionNote: selected.conditionSafetyNote,
-    category: selected.category,
-    alternatives: selected.alternatives
+    id: `${chosen.id}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    name: chosen.name,
+    targetMuscle: chosen.targetMuscle,
+    secondaryMuscles: chosen.secondary,
+    equipment: chosen.equipment,
+    sets,
+    reps,
+    restSeconds,
+    rpe,
+    formCue: chosen.formCue,
+    conditionNote: conditionSafetyNote,
+    category: chosen.exerciseCategory,
+    illustrationType: chosen.id,
+    postureKeypoints: [
+      '1. Setup Stance: Brace core, depress scapulae, plant feet firmly.',
+      `2. Concentric Drive: Drive through ${chosen.targetMuscle} without momentum.`,
+      '3. Eccentric Cadence: Lower under strict 3-second negative.'
+    ],
+    alternatives: chosen.alternatives
   };
 }
 
 /**
- * Generate full tailored Workout Plan
+ * Generate full tailored Workout Plan based on ALL user conditions
  */
 export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
   const metrics = calculateNutrition(assessment);
   const condition = assessment.bodyCondition;
   const env = assessment.trainingEnvironment;
   const daysCount = assessment.daysPerWeek;
+  const goal = assessment.goal;
 
-  let splitName = 'High-Performance 4-Day Split';
-  let title = 'Hypertrophy & Athletic Strength Blueprint';
-  let subtitle = 'Customized for your biomechanics, metabolic rate, and conditioning level';
+  // Generate dynamic title reflecting their exact goal + condition
+  let goalLabel = 'Hypertrophy Architecture';
+  if (goal === 'weight_loss') goalLabel = 'Metabolic Shred & Fat-Loss';
+  else if (goal === 'weight_gain') goalLabel = 'Mass Building & Anabolic Bulk';
+  else if (goal === 'remain_fit') goalLabel = 'Functional Stamina & Longevity';
 
-  if (assessment.goal === 'weight_loss') {
-    title = 'Metabolic Lean & Shred Protocol';
-    subtitle = 'Optimized for high caloric expenditure, lean muscle retention, and joint longevity';
-  } else if (assessment.goal === 'weight_gain') {
-    title = 'Hypertrophy Mass & Power Builder';
-    subtitle = 'Progressive volume architecture designed for maximum muscular growth and strength';
-  } else if (assessment.goal === 'remain_fit') {
-    title = 'Longevity & Functional Athletic Engine';
-    subtitle = 'Cardiovascular stamina, core stability, and bulletproof joint mobility';
-  }
+  let conditionLabel = 'Unrestricted Power';
+  if (condition === 'knee_friendly') conditionLabel = 'Knee-Friendly';
+  else if (condition === 'lower_back_care') conditionLabel = 'Lower Back Decompression';
+  else if (condition === 'shoulder_safe') conditionLabel = 'Rotator-Safe';
+  else if (condition === 'sedentary_posture') conditionLabel = 'Desk Posture Reset';
 
-  // Generate Warmup Routines adapted to condition
+  const title = `${conditionLabel} ${goalLabel} Blueprint`;
+  const subtitle = `Individually engineered for ${assessment.age}yo ${assessment.gender} (${assessment.weight}kg, ${assessment.height}cm) with ${condition.replace('_', ' ')} protocol over ${daysCount} training days.`;
+
+  // Warmup customized to condition
   const baseWarmup = [
     { name: 'Cat-Cow Spinal Articulation', duration: '60 sec', cue: 'Sync breath with movement, mobilize thoracic spine' },
     { name: 'World\'s Greatest Stretch', duration: '90 sec', cue: 'Open hips, thoracic rotation, active hamstring stretch' },
@@ -557,6 +838,10 @@ export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
     baseWarmup[1] = { name: 'Knee-Friendly Glute Bridge & Hip Opener', duration: '90 sec', cue: 'Activate glute medius and hip flexors without patellar torque' };
   } else if (condition === 'lower_back_care') {
     baseWarmup[0] = { name: 'Bird-Dog & Pelvic Tilts', duration: '90 sec', cue: 'Lock lumbar spine in neutral, contract glutes' };
+  } else if (condition === 'shoulder_safe') {
+    baseWarmup[2] = { name: 'Scapular Wall Slides & External Rotations', duration: '90 sec', cue: 'Clear the acromion space with zero pain' };
+  } else if (condition === 'sedentary_posture') {
+    baseWarmup[0] = { name: 'Couch Stretch Hip Flexor Opening', duration: '90 sec', cue: 'Unclamp hip flexors tightened from prolonged desk sitting' };
   }
 
   const baseCooldown = [
@@ -568,80 +853,73 @@ export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
   const days: WorkoutDay[] = [];
 
   if (daysCount === 3) {
-    splitName = '3-Day Full Body Athletic Foundation';
-    
-    // Day 1: Full Body Power & Press
+    // 3-Day Full Body Split
     days.push({
       dayNumber: 1,
-      title: 'Day 1: Full Body Power & Horizontal Press',
+      title: 'Day 1: Full Body Power & Press',
       focus: 'Chest, Quads, Upper Back & Anti-Rotation Core',
       estimatedMinutes: assessment.sessionDurationMin || 55,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('push', condition, env, 'Chest'),
-        selectExercise('legs', condition, env, 'Quadriceps'),
-        selectExercise('pull', condition, env, 'Mid-Back'),
-        selectExercise('push', condition, env, 'Lateral Deltoids'),
-        selectExercise('core_and_mobility', condition, env)
+        buildCalibratedExercise('push', 'Chest', assessment),
+        buildCalibratedExercise('legs', condition === 'knee_friendly' ? 'Glute' : 'Quad', assessment),
+        buildCalibratedExercise('pull', 'Mid-Back', assessment),
+        buildCalibratedExercise('push', 'Lateral Deltoids', assessment),
+        buildCalibratedExercise('core_and_mobility', 'Core', assessment)
       ],
       cooldown: baseCooldown
     });
 
-    // Day 2: Full Body Posterior Chain & Pull
     days.push({
       dayNumber: 2,
-      title: 'Day 2: Full Body Posterior Chain & Vertical Pull',
-      focus: 'Hamstrings, Lats, Shoulders & Posterior Core',
+      title: 'Day 2: Full Body Posterior Chain & Pull',
+      focus: 'Hamstrings, Lats, Shoulders & Core Stability',
       estimatedMinutes: assessment.sessionDurationMin || 55,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('legs', condition, env, 'Hamstrings'),
-        selectExercise('pull', condition, env, 'Latissimus'),
-        selectExercise('push', condition, env, 'Upper Chest'),
-        selectExercise('pull', condition, env, 'Rear Deltoids'),
-        selectExercise('core_and_mobility', condition, env)
+        buildCalibratedExercise('legs', 'Hamstrings', assessment),
+        buildCalibratedExercise('pull', 'Lats', assessment),
+        buildCalibratedExercise('push', 'Upper Chest', assessment),
+        buildCalibratedExercise('pull', 'Rear Delts', assessment),
+        buildCalibratedExercise('core_and_mobility', 'Core', assessment)
       ],
       cooldown: baseCooldown
     });
 
-    // Day 3: Full Body Hypertrophy & Unilateral Balance
     days.push({
       dayNumber: 3,
-      title: 'Day 3: Full Body Hypertrophy & Unilateral Stability',
-      focus: 'Glutes, Arms, Upper Back & Metabolic Core',
+      title: 'Day 3: Full Body Hypertrophy & Stability',
+      focus: 'Glutes, Arms, Upper Back & Metabolic Stamina',
       estimatedMinutes: assessment.sessionDurationMin || 55,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('legs', condition, env, 'Gluteus'),
-        selectExercise('pull', condition, env, 'Upper Back'),
-        selectExercise('push', condition, env, 'Triceps'),
-        selectExercise('pull', condition, env, 'Biceps'),
-        selectExercise('legs', condition, env, 'Calves')
+        buildCalibratedExercise('legs', 'Glute', assessment),
+        buildCalibratedExercise('pull', 'Upper Back', assessment),
+        buildCalibratedExercise('push', 'Triceps', assessment),
+        buildCalibratedExercise('pull', 'Biceps', assessment),
+        buildCalibratedExercise('legs', 'Calf', assessment)
       ],
       cooldown: baseCooldown
     });
 
   } else if (daysCount === 4) {
-    splitName = '4-Day Upper / Lower Athletic Split';
-
-    // Day 1: Upper Body Power
+    // 4-Day Upper / Lower Split
     days.push({
       dayNumber: 1,
       title: 'Day 1: Upper Body Power & Strength',
-      focus: 'Chest, Upper Back, Shoulders & Arms',
+      focus: 'Chest, Upper Back, Shoulders & Triceps',
       estimatedMinutes: assessment.sessionDurationMin || 60,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('push', condition, env, 'Chest'),
-        selectExercise('pull', condition, env, 'Mid-Back'),
-        selectExercise('push', condition, env, 'Lateral Deltoids'),
-        selectExercise('pull', condition, env, 'Rear Deltoids'),
-        selectExercise('push', condition, env, 'Triceps')
+        buildCalibratedExercise('push', 'Chest', assessment),
+        buildCalibratedExercise('pull', 'Mid-Back', assessment),
+        buildCalibratedExercise('push', 'Upper Chest', assessment),
+        buildCalibratedExercise('push', 'Lateral Deltoids', assessment),
+        buildCalibratedExercise('push', 'Triceps', assessment)
       ],
       cooldown: baseCooldown
     });
 
-    // Day 2: Lower Body & Posterior Chain
     days.push({
       dayNumber: 2,
       title: 'Day 2: Lower Body Strength & Stability',
@@ -649,33 +927,31 @@ export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
       estimatedMinutes: assessment.sessionDurationMin || 60,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('legs', condition, env, 'Quadriceps'),
-        selectExercise('legs', condition, env, 'Hamstrings'),
-        selectExercise('legs', condition, env, 'Gluteus'),
-        selectExercise('legs', condition, env, 'Calves'),
-        selectExercise('core_and_mobility', condition, env)
+        buildCalibratedExercise('legs', condition === 'knee_friendly' ? 'Glute' : 'Quad', assessment),
+        buildCalibratedExercise('legs', 'Hamstrings', assessment),
+        buildCalibratedExercise('legs', 'Glute', assessment),
+        buildCalibratedExercise('legs', 'Calf', assessment),
+        buildCalibratedExercise('core_and_mobility', 'Core', assessment)
       ],
       cooldown: baseCooldown
     });
 
-    // Day 3: Upper Body Hypertrophy & Density
     days.push({
       dayNumber: 3,
-      title: 'Day 3: Upper Body Hypertrophy & Volume',
-      focus: 'Lats, Upper Chest, Deltoid Cap & Biceps',
+      title: 'Day 3: Upper Body Hypertrophy & Density',
+      focus: 'Lats, Upper Chest, Rear Delts & Biceps',
       estimatedMinutes: assessment.sessionDurationMin || 60,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('pull', condition, env, 'Latissimus'),
-        selectExercise('push', condition, env, 'Upper Chest'),
-        selectExercise('pull', condition, env, 'Mid-Back'),
-        selectExercise('push', condition, env, 'Lateral Deltoids'),
-        selectExercise('pull', condition, env, 'Biceps')
+        buildCalibratedExercise('pull', 'Lats', assessment),
+        buildCalibratedExercise('push', 'Upper Chest', assessment),
+        buildCalibratedExercise('pull', 'Upper Back', assessment),
+        buildCalibratedExercise('pull', 'Rear Delts', assessment),
+        buildCalibratedExercise('pull', 'Biceps', assessment)
       ],
       cooldown: baseCooldown
     });
 
-    // Day 4: Lower Body Hypertrophy & Core Armor
     days.push({
       dayNumber: 4,
       title: 'Day 4: Lower Body Volume & Core Armor',
@@ -683,59 +959,61 @@ export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
       estimatedMinutes: assessment.sessionDurationMin || 60,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('legs', condition, env, 'Gluteus'),
-        selectExercise('legs', condition, env, 'Hamstrings'),
-        selectExercise('legs', condition, env, 'Quadriceps'),
-        selectExercise('core_and_mobility', condition, env),
-        selectExercise('legs', condition, env, 'Calves')
+        buildCalibratedExercise('legs', 'Glute', assessment),
+        buildCalibratedExercise('legs', 'Hamstrings', assessment),
+        buildCalibratedExercise('legs', condition === 'knee_friendly' ? 'Glute' : 'Quad', assessment),
+        buildCalibratedExercise('core_and_mobility', 'Core', assessment),
+        buildCalibratedExercise('legs', 'Calf', assessment)
       ],
       cooldown: baseCooldown
     });
 
   } else if (daysCount === 5) {
-    splitName = '5-Day Push / Pull / Legs / Upper / Lower Periodization';
-
+    // 5-Day Periodized Split
     days.push({
       dayNumber: 1,
-      title: 'Day 1: Push Intensity (Chest & Shoulders)',
-      focus: 'Horizontal Pressing, Deltoid Caps & Triceps',
+      title: 'Day 1: Push Intensity (Chest, Shoulders & Triceps)',
+      focus: 'Horizontal Pressing, Upper Chest, Deltoid Caps, Triceps & Core Armor',
       estimatedMinutes: assessment.sessionDurationMin || 60,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('push', condition, env, 'Chest'),
-        selectExercise('push', condition, env, 'Upper Chest'),
-        selectExercise('push', condition, env, 'Lateral Deltoids'),
-        selectExercise('push', condition, env, 'Triceps')
+        buildCalibratedExercise('push', 'Chest', assessment),
+        buildCalibratedExercise('push', 'Upper Chest', assessment),
+        buildCalibratedExercise('push', 'Lateral Deltoids', assessment),
+        buildCalibratedExercise('push', 'Triceps', assessment),
+        buildCalibratedExercise('core_and_mobility', 'Core', assessment)
       ],
       cooldown: baseCooldown
     });
 
     days.push({
       dayNumber: 2,
-      title: 'Day 2: Pull Intensity (Back & Biceps)',
-      focus: 'Lat Width, Mid-Back Thickness & Arm Density',
+      title: 'Day 2: Pull Intensity (Back, Posterior Chain & Biceps)',
+      focus: 'Lat Width, Mid-Back Thickness, Rear Delts & Biceps',
       estimatedMinutes: assessment.sessionDurationMin || 60,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('pull', condition, env, 'Latissimus'),
-        selectExercise('pull', condition, env, 'Mid-Back'),
-        selectExercise('pull', condition, env, 'Rear Deltoids'),
-        selectExercise('pull', condition, env, 'Biceps')
+        buildCalibratedExercise('pull', 'Lats', assessment),
+        buildCalibratedExercise('pull', 'Mid-Back', assessment),
+        buildCalibratedExercise('pull', 'Rear Delts', assessment),
+        buildCalibratedExercise('pull', 'Biceps', assessment),
+        buildCalibratedExercise('core_and_mobility', 'Core', assessment)
       ],
       cooldown: baseCooldown
     });
 
     days.push({
       dayNumber: 3,
-      title: 'Day 3: Lower Body Power (Quads & Glutes)',
-      focus: 'Quad Overload, Hamstring Hinge & Calves',
+      title: 'Day 3: Lower Body Power (Quads, Glutes & Calves)',
+      focus: 'Quad Overload, Hamstring Hinge, Glute Max & Core',
       estimatedMinutes: assessment.sessionDurationMin || 60,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('legs', condition, env, 'Quadriceps'),
-        selectExercise('legs', condition, env, 'Hamstrings'),
-        selectExercise('legs', condition, env, 'Gluteus'),
-        selectExercise('legs', condition, env, 'Calves')
+        buildCalibratedExercise('legs', condition === 'knee_friendly' ? 'Glute' : 'Quad', assessment),
+        buildCalibratedExercise('legs', 'Hamstrings', assessment),
+        buildCalibratedExercise('legs', 'Glute', assessment),
+        buildCalibratedExercise('legs', 'Calf', assessment),
+        buildCalibratedExercise('core_and_mobility', 'Core', assessment)
       ],
       cooldown: baseCooldown
     });
@@ -743,15 +1021,15 @@ export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
     days.push({
       dayNumber: 4,
       title: 'Day 4: Upper Body Sculpt & Hypertrophy',
-      focus: 'Chest Flyes, Rows, Lateral Raises & Arm Finisher',
+      focus: 'Pectorals, Rows, Lateral Raises & Arm Finisher',
       estimatedMinutes: assessment.sessionDurationMin || 55,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('push', condition, env, 'Upper Chest'),
-        selectExercise('pull', condition, env, 'Upper Back'),
-        selectExercise('push', condition, env, 'Lateral Deltoids'),
-        selectExercise('pull', condition, env, 'Biceps'),
-        selectExercise('push', condition, env, 'Triceps')
+        buildCalibratedExercise('push', 'Upper Chest', assessment),
+        buildCalibratedExercise('pull', 'Upper Back', assessment),
+        buildCalibratedExercise('push', 'Lateral Deltoids', assessment),
+        buildCalibratedExercise('pull', 'Biceps', assessment),
+        buildCalibratedExercise('push', 'Triceps', assessment)
       ],
       cooldown: baseCooldown
     });
@@ -763,50 +1041,51 @@ export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
       estimatedMinutes: assessment.sessionDurationMin || 50,
       warmup: baseWarmup,
       exercises: [
-        selectExercise('legs', condition, env, 'Hamstrings'),
-        selectExercise('core_and_mobility', condition, env),
-        selectExercise('legs', condition, env, 'Gluteus'),
-        selectExercise('pull', condition, env, 'Rear Deltoids')
+        buildCalibratedExercise('legs', 'Hamstrings', assessment),
+        buildCalibratedExercise('core_and_mobility', 'Core', assessment),
+        buildCalibratedExercise('legs', 'Glute', assessment),
+        buildCalibratedExercise('pull', 'Rear Delts', assessment),
+        buildCalibratedExercise('metabolic', 'Cardio', assessment)
       ],
       cooldown: baseCooldown
     });
 
   } else {
-    // 6 Days: PPL x 2
-    splitName = '6-Day Push / Pull / Legs High-Performance Split';
-
+    // 6-Day Push / Pull / Legs Split
     const pplTitles = [
-      'Day 1: Push A (Chest & Triceps Focus)',
-      'Day 2: Pull A (Lat Width & Upper Back)',
-      'Day 3: Legs A (Quad Overload & Calves)',
-      'Day 4: Push B (Deltoid Cap & Incline Press)',
-      'Day 5: Pull B (Back Thickness & Biceps)',
-      'Day 6: Legs B (Posterior Chain & Core Stability)'
+      'Day 1: Push A (Chest, Shoulders & Triceps Focus)',
+      'Day 2: Pull A (Lat Width, Mid-Back & Biceps)',
+      'Day 3: Legs A (Quad Overload, Hamstrings & Calves)',
+      'Day 4: Push B (Upper Chest, Deltoid Cap & Triceps)',
+      'Day 5: Pull B (Back Thickness, Rear Delts & Arms)',
+      'Day 6: Legs B (Posterior Chain, Glutes & Core Stability)'
     ];
 
     pplTitles.forEach((t, idx) => {
       let exList: Exercise[] = [];
       if (idx % 3 === 0) {
         exList = [
-          selectExercise('push', condition, env, 'Chest'),
-          selectExercise('push', condition, env, 'Upper Chest'),
-          selectExercise('push', condition, env, 'Lateral Deltoids'),
-          selectExercise('push', condition, env, 'Triceps')
+          buildCalibratedExercise('push', 'Chest', assessment),
+          buildCalibratedExercise('push', 'Upper Chest', assessment),
+          buildCalibratedExercise('push', 'Lateral Deltoids', assessment),
+          buildCalibratedExercise('push', 'Triceps', assessment),
+          buildCalibratedExercise('core_and_mobility', 'Core', assessment)
         ];
       } else if (idx % 3 === 1) {
         exList = [
-          selectExercise('pull', condition, env, 'Latissimus'),
-          selectExercise('pull', condition, env, 'Mid-Back'),
-          selectExercise('pull', condition, env, 'Rear Deltoids'),
-          selectExercise('pull', condition, env, 'Biceps')
+          buildCalibratedExercise('pull', 'Lats', assessment),
+          buildCalibratedExercise('pull', 'Mid-Back', assessment),
+          buildCalibratedExercise('pull', 'Rear Delts', assessment),
+          buildCalibratedExercise('pull', 'Biceps', assessment),
+          buildCalibratedExercise('core_and_mobility', 'Core', assessment)
         ];
       } else {
         exList = [
-          selectExercise('legs', condition, env, 'Quadriceps'),
-          selectExercise('legs', condition, env, 'Hamstrings'),
-          selectExercise('legs', condition, env, 'Gluteus'),
-          selectExercise('legs', condition, env, 'Calves'),
-          selectExercise('core_and_mobility', condition, env)
+          buildCalibratedExercise('legs', condition === 'knee_friendly' ? 'Glute' : 'Quad', assessment),
+          buildCalibratedExercise('legs', 'Hamstrings', assessment),
+          buildCalibratedExercise('legs', 'Glute', assessment),
+          buildCalibratedExercise('legs', 'Calf', assessment),
+          buildCalibratedExercise('core_and_mobility', 'Core', assessment)
         ];
       }
 
@@ -824,8 +1103,8 @@ export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
 
   // Nutrition Advice tailored to goals
   const nutritionTips = [
-    `Daily Calorie Target: ${metrics.macros.calories} kcal (${assessment.goal === 'weight_loss' ? '450 kcal deficit' : assessment.goal === 'weight_gain' ? '420 kcal surplus' : 'Balanced maintenance'})`,
-    `Protein Target: ${metrics.macros.proteinGrams}g/day (~${(metrics.macros.proteinGrams / assessment.weight).toFixed(1)}g per kg body weight) to support muscle recovery.`,
+    `Daily Calorie Target: ${metrics.macros.calories} kcal (${assessment.goal === 'weight_loss' ? '450 kcal fat-loss deficit' : assessment.goal === 'weight_gain' ? '420 kcal clean lean-bulk surplus' : 'Maintenance baseline'})`,
+    `Protein Target: ${metrics.macros.proteinGrams}g/day (~${(metrics.macros.proteinGrams / assessment.weight).toFixed(1)}g per kg body weight) to support optimal tissue remodeling.`,
     `Hydration: Minimum ${metrics.macros.waterLiters} Liters of water daily, drinking 500ml upon waking and 750ml during workout.`
   ];
 
@@ -848,16 +1127,16 @@ export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
   const recoveryRules = [
     'Aim for 7.5 to 8.5 hours of uninterrupted sleep; 95% of human growth hormone is released during stage 3 deep sleep.',
     'Take a 10-15 minute post-meal walk twice a day to improve insulin sensitivity and lower blood glucose spikes.',
-    'Keep rest times between heavy compound sets strict (75-120 seconds); use the built-in timer to stay focused.',
-    condition !== 'healthy' ? `Condition Care Note: Your plan is specially customized for ${condition.replace('_', ' ')}. Never push through sharp joint pain; fatigue is good, pain is a signal.` : 'Maintain strict progressive overload: record weights and try to add 1 rep or 1-2kg every 1-2 weeks.'
+    'Keep rest times between sets strict; use the built-in timer to maintain planned heart rate and metabolic stimulus.',
+    condition !== 'healthy' ? `Condition Safeguard: Your plan is specially tailored for ${condition.replace('_', ' ')}. Never push through sharp joint pain; muscular burn is good, sharp joint pain is a stop signal.` : 'Maintain strict progressive overload: record weights and try to add 1 rep or 1-2kg every 1-2 weeks.'
   ];
 
   return {
-    id: `fithub_plan_${Date.now()}`,
+    id: `fithub_plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     title,
     subtitle,
-    splitName,
-    summary: `Tailored for a ${assessment.age}-year-old ${assessment.gender} weighing ${assessment.weight}kg (${assessment.height}cm), targeting ${assessment.goal.replace('_', ' ')} with ${condition.replace('_', ' ')} adaptation over ${daysCount} training days per week.`,
+    splitName: `${daysCount}-Day ${conditionLabel} Split`,
+    summary: `Tailored for a ${assessment.age}-year-old ${assessment.gender} weighing ${assessment.weight}kg (${assessment.height}cm), targeting ${assessment.goal.replace('_', ' ')} with ${condition.replace('_', ' ')} safeguards over ${daysCount} training days per week in a ${env.replace('_', ' ')} setting.`,
     frequency: `${daysCount} Days / Week`,
     userAssessment: assessment,
     metrics,
@@ -865,6 +1144,6 @@ export function generateWorkoutPlan(assessment: UserAssessment): WorkoutPlan {
     nutritionTips,
     mealTiming,
     recoveryRules,
-    coachAdvice: `Welcome to FitHub. As Head Coach Yash Badgujar, my core training rule is simple: Consistency beats intensity, and intelligent biomechanics beats reckless lifting. Stick to this structured routine for 8-12 weeks, log your numbers, respect your rest intervals, and let the plan do the work.`
+    coachAdvice: `Welcome to FitHub. As Head Coach Yash Badgujar, my core training rule is simple: Consistency beats intensity, and intelligent biomechanics beats reckless lifting. Every movement in this chart has been vetted for your ${condition.replace('_', ' ')} condition and ${goal.replace('_', ' ')} goal. Stick to this structured routine for 8-12 weeks, log your numbers, respect your rest intervals, and let the plan do the work.`
   };
 }

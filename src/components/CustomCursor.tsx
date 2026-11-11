@@ -75,27 +75,27 @@ export const CustomCursor: React.FC = () => {
 
   return (
     <>
-      {/* Precision Center Dot - Black */}
+      {/* Precision Center Dot - White */}
       <div
         ref={cursorDotRef}
         className={`fixed top-0 left-0 pointer-events-none z-[9999] rounded-full transition-transform duration-75 ease-out ${
           isClicking
-            ? 'w-2 h-2 bg-black border border-white/90 scale-90'
+            ? 'w-2 h-2 bg-white scale-90 shadow-[0_0_8px_#ffffff]'
             : isHovering
-            ? 'w-2.5 h-2.5 bg-black border border-white shadow-[0_0_6px_rgba(255,255,255,0.6)]'
-            : 'w-2 h-2 bg-black border border-white/70 shadow-[0_0_4px_rgba(255,255,255,0.4)]'
+            ? 'w-2.5 h-2.5 bg-white shadow-[0_0_12px_#ffffff]'
+            : 'w-2 h-2 bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]'
         }`}
       />
 
-      {/* Trailing Outer Circle - Black */}
+      {/* Trailing Outer Circle - White */}
       <div
         ref={cursorRingRef}
-        className={`fixed top-0 left-0 pointer-events-none z-[9998] rounded-full transition-[width,height,border-color,background-color,transform] duration-200 ease-out border-2 border-black ${
+        className={`fixed top-0 left-0 pointer-events-none z-[9998] rounded-full transition-[width,height,border-color,background-color,transform] duration-200 ease-out border-2 border-white/80 ${
           isClicking
-            ? 'w-7 h-7 bg-black/30 scale-90 shadow-[0_0_0_1px_rgba(255,255,255,0.35)]'
+            ? 'w-7 h-7 border-white bg-white/30 scale-90 shadow-[0_0_15px_rgba(255,255,255,0.6)]'
             : isHovering
-            ? 'w-12 h-12 bg-black/20 shadow-[0_0_0_1px_rgba(255,255,255,0.35)]'
-            : 'w-8 h-8 bg-black/10 shadow-[0_0_0_1px_rgba(255,255,255,0.2)]'
+            ? 'w-12 h-12 border-white bg-white/20 shadow-[0_0_20px_rgba(255,255,255,0.5)]'
+            : 'w-8 h-8 border-white/60 bg-white/10 shadow-[0_0_12px_rgba(255,255,255,0.3)]'
         }`}
       />
     </>

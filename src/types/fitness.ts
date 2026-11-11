@@ -21,7 +21,13 @@ export type FitnessGoal =
 
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 
-export type TrainingEnvironment = 'commercial_gym' | 'home_gym' | 'bodyweight';
+export type TrainingEnvironment = 
+  | 'commercial_gym'      // Full Commercial Gym (Barbells, Cables, Dumbbells, Machines)
+  | 'home_gym'            // Home Gym (Dumbbells & Adjustable Bench)
+  | 'bodyweight'          // Only Home Workout Without Any Weight (Calisthenics / Zero Gear)
+  | 'home_bands';         // Home Workout with Resistance Bands & Door Anchor
+
+export type BmiRating = 'good' | 'moderate' | 'bad' | 'worst';
 
 export interface UserAssessment {
   weight: number; // in kg
@@ -54,6 +60,9 @@ export interface MacroBreakdown {
 export interface BodyMetrics {
   bmi: number;
   bmiCategory: 'Underweight' | 'Normal' | 'Overweight' | 'Obese';
+  bmiRating: BmiRating; // 'good' | 'moderate' | 'bad' | 'worst'
+  bmiRatingLabel: string; // e.g. "Good / Optimal", "Bad", "Worst"
+  bmiConditionVerdict: string; // Specific biomechanical evaluation according to user's condition
   bmr: number;
   tdee: number;
   macros: MacroBreakdown;
@@ -72,6 +81,8 @@ export interface Exercise {
   formCue: string;
   conditionNote?: string;
   category: 'compound' | 'isolation' | 'core' | 'mobility' | 'cardio';
+  illustrationType: string;
+  postureKeypoints: string[];
   alternatives: { id: string; name: string; equipment: string; reason: string }[];
 }
 
